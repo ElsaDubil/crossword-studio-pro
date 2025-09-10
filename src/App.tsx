@@ -18,6 +18,9 @@ const App: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [hoveredWord, setHoveredWord] = useState<PlacedWord | null>(null);
+  const [symmetryMode, setSymmetryMode] = useState<'none' | 'rotational' | 'mirror'>('rotational');
+  const [isPlacingBlocks, setIsPlacingBlocks] = useState(false);
+  const [hoveredCell, setHoveredCell] = useState<[number, number] | null>(null);
 
   useEffect(() => {
     const newGrid = Array(gridSize).fill(null).map(() => 
@@ -145,13 +148,13 @@ const App: React.FC = () => {
     const bestPlacement = findBestPlacement(word.toUpperCase(), newGrid, placed);
     
     if (bestPlacement && 'row' in bestPlacement) {
-      placeWordOnGrid(newGrid, word.toUpperCase(), bestPlacement.row, bestPlacement.col, bestPlacement.direction, placed.length + 1);
+      placeWordOnGrid(newGrid, word.toUpperCase(), bestPlacement.row!, bestPlacement.col!, bestPlacement.direction!, placed.length + 1);
       const newPlacedWord: PlacedWord = {
         word: word.toUpperCase(),
         clue,
-        row: bestPlacement.row,
-        col: bestPlacement.col,
-        direction: bestPlacement.direction,
+        row: bestPlacement.row!,
+        col: bestPlacement.col!,
+        direction: bestPlacement.direction!,
         number: placed.length + 1
       };
       placed.push(newPlacedWord);
@@ -221,13 +224,13 @@ const App: React.FC = () => {
         if (bestPlacement && 'row' in bestPlacement && (bestPlacement.intersections > 0 || currentPlaced.length < 3)) {
           const clue = await dictionary.getClue(word);
           
-          placeWordOnGrid(currentGrid, word, bestPlacement.row, bestPlacement.col, bestPlacement.direction, currentPlaced.length + 1);
+          placeWordOnGrid(currentGrid, word, bestPlacement.row!, bestPlacement.col!, bestPlacement.direction!, currentPlaced.length + 1);
           currentPlaced.push({
             word: word,
             clue: clue,
-            row: bestPlacement.row,
-            col: bestPlacement.col,
-            direction: bestPlacement.direction,
+            row: bestPlacement.row!,
+            col: bestPlacement.col!,
+            direction: bestPlacement.direction!,
             number: currentPlaced.length + 1
           });
           wordsAdded++;
@@ -263,6 +266,97 @@ const App: React.FC = () => {
       return row === word.row && col >= word.col && col < word.col + word.word.length;
     } else {
       return col === word.col && row >= word.row && row < word.row + word.word.length;
+    }
+  };
+
+  const getSymmetricCells = (row: number, col: number): [number, number][] => {
+    const cells: [number, number][] = [[row, col]];
+    
+    if (symmetryMode === 'rotational') {
+      // 180-degree rotational symmetry
+      const symRow = gridSize - 1 - row;
+      const symCol = gridSize - 1 - col;
+      if (symRow !== row || symCol !== col) {
+        cells.push([symRow, symCol]);
+      }
+    } else if (symmetryMode === 'mirror') {
+      // Vertical mirror symmetry
+      const symCol = gridSize - 1 - col;
+      if (symCol !== col) {
+        cells.push([row, symCol]);
+      }
+      // Horizontal mirror symmetry
+      const symRow = gridSize - 1 - row;
+      if (symRow !== row) {
+        cells.push([symRow, col]);
+      }
+      // Diagonal symmetry (both axes)
+      if (symRow !== row && symCol !== col) {
+        cells.push([symRow, symCol]);
+      }
+    }
+    
+    return cells;
+  };
+
+  const toggleBlockedCell = (row: number, col: number) => {
+    const newGrid = grid.map(r => r.map(c => ({...c})));
+    const symmetricCells = getSymmetricCells(row, col);
+    
+    // Check if the main cell is currently blocked
+    const isCurrentlyBlocked = newGrid[row][col].blocked;
+    
+    // Toggle all symmetric cells
+    symmetricCells.forEach(([r, c]) => {
+      if (r >= 0 && r < gridSize && c >= 0 && c < gridSize) {
+        newGrid[r][c] = {
+          ...newGrid[r][c],
+          blocked: !isCurrentlyBlocked,
+          letter: !isCurrentlyBlocked ? '' : newGrid[r][c].letter,
+          number: !isCurrentlyBlocked ? null : newGrid[r][c].number
+        };
+      }
+    });
+    
+    setGrid(newGrid);
+    
+    // Remove any placed words that conflict with new blocked cells
+    const validPlacedWords = placedWords.filter(word => {
+      for (let i = 0; i < word.word.length; i++) {
+        const r = word.direction === 'horizontal' ? word.row : word.row + i;
+        const c = word.direction === 'horizontal' ? word.col + i : word.col;
+        if (newGrid[r][c].blocked) {
+          return false;
+        }
+      }
+      return true;
+    });
+    
+    if (validPlacedWords.length !== placedWords.length) {
+      setPlacedWords(validPlacedWords);
+      // Rebuild the grid without the removed words
+      const cleanGrid = Array(gridSize).fill(null).map(() => 
+        Array(gridSize).fill(null).map(() => ({ letter: '', blocked: false, number: null }))
+      );
+      
+      // Restore blocked cells
+      for (let r = 0; r < gridSize; r++) {
+        for (let c = 0; c < gridSize; c++) {
+          if (newGrid[r][c].blocked) {
+            cleanGrid[r][c].blocked = true;
+          }
+        }
+      }
+      
+      // Re-place valid words
+      validPlacedWords.forEach((word, index) => {
+        placeWordOnGrid(cleanGrid, word.word, word.row, word.col, word.direction, index + 1);
+      });
+      
+      setGrid(cleanGrid);
+      saveToHistory(cleanGrid, validPlacedWords, userWords);
+    } else {
+      saveToHistory(newGrid, placedWords, userWords);
     }
   };
 
@@ -319,7 +413,16 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+    <>
+      {/* Animated Cloud Background */}
+      <div className="cloud-background">
+        <div className="cloud cloud1"></div>
+        <div className="cloud cloud2"></div>
+        <div className="cloud cloud3"></div>
+        <div className="cloud cloud4"></div>
+      </div>
+      
+    <div className="min-h-screen">
       {/* Header */}
       <div className="glass border-b sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4">
@@ -373,7 +476,7 @@ const App: React.FC = () => {
                     type="range"
                     min="10"
                     max="21"
-                    step="2"
+                    step="1"
                     value={gridSize}
                     onChange={(e) => setGridSize(parseInt(e.target.value))}
                     className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
@@ -398,6 +501,43 @@ const App: React.FC = () => {
                     )}
                   </button>
                 </div>
+              </div>
+            </div>
+
+            {/* Block Placement */}
+            <div className="glass rounded-2xl p-6 slide-up">
+              <h3 className="text-lg font-semibold mb-4 text-gray-900">Block Placement</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Symmetry Mode
+                  </label>
+                  <select
+                    value={symmetryMode}
+                    onChange={(e) => setSymmetryMode(e.target.value as 'none' | 'rotational' | 'mirror')}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+                  >
+                    <option value="none">No Symmetry</option>
+                    <option value="rotational">Rotational (180°)</option>
+                    <option value="mirror">Mirror (4-way)</option>
+                  </select>
+                </div>
+                <button
+                  onClick={() => setIsPlacingBlocks(!isPlacingBlocks)}
+                  className={`w-full px-4 py-3 rounded-xl transition-all font-medium ${
+                    isPlacingBlocks 
+                      ? 'bg-purple-600 text-white hover:bg-purple-700' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {isPlacingBlocks ? '⬛ Block Mode ON' : '⬜ Block Mode OFF'}
+                </button>
+                <p className="text-xs text-gray-600">
+                  {isPlacingBlocks 
+                    ? 'Click grid cells to place/remove blocks with symmetry'
+                    : 'Enable block mode to place dark squares'
+                  }
+                </p>
               </div>
             </div>
 
@@ -461,27 +601,43 @@ const App: React.FC = () => {
             <div className="glass rounded-2xl p-8 fade-in">
               <div className="flex justify-center">
                 <div 
-                  className="nyt-grid inline-block"
+                  className="nyt-grid"
                   style={{
                     display: 'grid',
                     gridTemplateColumns: `repeat(${gridSize}, 1fr)`,
-                    width: 'fit-content',
-                    maxWidth: '600px',
+                    width: '100%',
+                    maxWidth: Math.min(600, 40 * gridSize) + 'px',
+                    aspectRatio: '1',
                   }}
                 >
                   {grid.map((row, rowIdx) =>
                     row.map((cell, colIdx) => (
                       <div
                         key={`${rowIdx}-${colIdx}`}
-                        className={`nyt-cell crossword-cell w-8 h-8 sm:w-10 sm:h-10 cursor-pointer ${
+                        className={`nyt-cell crossword-cell cursor-pointer ${
                           cell.blocked ? 'blocked' : ''
                         } ${
                           selectedCell && selectedCell[0] === rowIdx && selectedCell[1] === colIdx ? 'highlighted' : ''
                         } ${
                           hoveredWord && isPartOfWord(rowIdx, colIdx, hoveredWord) ? 'word-highlight' : ''
+                        } ${
+                          isPlacingBlocks && hoveredCell && 
+                          getSymmetricCells(hoveredCell[0], hoveredCell[1]).some(([r, c]) => r === rowIdx && c === colIdx)
+                            ? 'symmetry-preview' : ''
                         }`}
-                        onClick={() => setSelectedCell([rowIdx, colIdx])}
-                        style={{ fontSize: gridSize > 15 ? '10px' : '12px' }}
+                        onClick={() => {
+                          if (isPlacingBlocks) {
+                            toggleBlockedCell(rowIdx, colIdx);
+                          } else {
+                            setSelectedCell([rowIdx, colIdx]);
+                          }
+                        }}
+                        onMouseEnter={() => isPlacingBlocks && setHoveredCell([rowIdx, colIdx])}
+                        onMouseLeave={() => isPlacingBlocks && setHoveredCell(null)}
+                        style={{ 
+                          fontSize: Math.max(8, Math.min(14, 400 / gridSize)) + 'px',
+                          aspectRatio: '1'
+                        }}
                       >
                         {cell.number && (
                           <span className="cell-number">
@@ -598,6 +754,7 @@ const App: React.FC = () => {
         )}
       </div>
     </div>
+    </>
   );
 };
 
