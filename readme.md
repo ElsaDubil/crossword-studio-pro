@@ -20,12 +20,3 @@ Professional crossword creation tool built with React and TypeScript. Features s
 
 ### Installation
 ```bash
-# Clone the repository
-git clone https://github.com/ElsaDubil/crossword-studio-pro.git
-cd crossword-studio-pro
-
-# Install dependencies
-npm install
-
-# Start development server
-npm start
