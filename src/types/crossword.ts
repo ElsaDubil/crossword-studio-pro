@@ -32,3 +32,19 @@ export interface Cell {
     col?: number;
     direction?: 'horizontal' | 'vertical';
   }
+
+  export interface PersonalWordEntry {
+    id: string;
+    word: string;
+    clue: string;
+    weight: number; // 1-10, higher = more preferred for autofill
+    category?: string;
+    dateAdded: Date;
+    lastUsed?: Date;
+    timesUsed: number;
+  }
+
+  export interface WordBank {
+    entries: PersonalWordEntry[];
+    categories: string[];
+  }

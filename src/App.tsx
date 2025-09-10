@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Cell, PlacedWord, UserWord, WordPlacement } from './types/crossword';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Cell, PlacedWord, UserWord, WordPlacement, PersonalWordEntry, WordBank } from './types/crossword';
 import { CrosswordDictionary } from './services/CrosswordDictionary';
 import './App.css';
 
@@ -7,31 +7,149 @@ const dictionary = new CrosswordDictionary();
 
 const App: React.FC = () => {
   const [gridSize, setGridSize] = useState(15);
-  const [grid, setGrid] = useState<Cell[][]>([]);
+  const [grid, setGrid] = useState<Cell[][]>(() => 
+    Array(15).fill(null).map(() => 
+      Array(15).fill({ letter: '', blocked: false, number: null })
+    )
+  );
   const [userWords, setUserWords] = useState<UserWord[]>([]);
   const [newWord, setNewWord] = useState('');
   const [newClue, setNewClue] = useState('');
   const [placedWords, setPlacedWords] = useState<PlacedWord[]>([]);
   const [selectedCell, setSelectedCell] = useState<[number, number] | null>(null);
-  const [history, setHistory] = useState<any[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [history, setHistory] = useState<any[]>(() => {
+    const initialGrid = Array(15).fill(null).map(() => 
+      Array(15).fill({ letter: '', blocked: false, number: null })
+    );
+    return [{ grid: initialGrid, placedWords: [], userWords: [] }];
+  });
+  const [historyIndex, setHistoryIndex] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [hoveredWord, setHoveredWord] = useState<PlacedWord | null>(null);
+  const [clickedWord, setClickedWord] = useState<PlacedWord | null>(null);
   const [symmetryMode, setSymmetryMode] = useState<'none' | 'rotational' | 'mirror'>('rotational');
+  
+  // Grid resize confirmation state
+  const [showResizeConfirm, setShowResizeConfirm] = useState(false);
+  const [pendingGridSize, setPendingGridSize] = useState<number | null>(null);
+  const [blockAnalysis, setBlockAnalysis] = useState<{
+    totalBlocks: number;
+    preservedBlocks: number;
+    lostBlocks: number;
+    symmetryMaintained: boolean;
+    wordConflicts: number;
+  } | null>(null);
   const [isPlacingBlocks, setIsPlacingBlocks] = useState(false);
   const [hoveredCell, setHoveredCell] = useState<[number, number] | null>(null);
+  const previousGridSizeRef = useRef(gridSize);
+  
+  // Personal Word Bank state
+  const [wordBank, setWordBank] = useState<WordBank>(() => {
+    const saved = localStorage.getItem('crossword-word-bank');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Convert date strings back to Date objects
+        parsed.entries = parsed.entries.map((entry: any) => ({
+          ...entry,
+          dateAdded: new Date(entry.dateAdded),
+          lastUsed: entry.lastUsed ? new Date(entry.lastUsed) : undefined
+        }));
+        return parsed;
+      } catch (e) {
+        console.error('Failed to load word bank from localStorage:', e);
+      }
+    }
+    return { entries: [], categories: ['General', 'Theme', 'Specialty'] };
+  });
+  const [showWordBank, setShowWordBank] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<PersonalWordEntry | null>(null);
+  const [newEntryWord, setNewEntryWord] = useState('');
+  const [newEntryClue, setNewEntryClue] = useState('');
+  const [newEntryWeight, setNewEntryWeight] = useState(5);
+  const [newEntryCategory, setNewEntryCategory] = useState('General');
 
   useEffect(() => {
+    // Only run when grid size actually changes
+    if (previousGridSizeRef.current === gridSize) {
+      return;
+    }
+
+    const previousSize = previousGridSizeRef.current;
+    previousGridSizeRef.current = gridSize;
+
+    // Create new empty grid
     const newGrid = Array(gridSize).fill(null).map(() => 
       Array(gridSize).fill({ letter: '', blocked: false, number: null })
     );
-    setGrid(newGrid);
-    setHistory([{ grid: newGrid, placedWords: [], userWords: [] }]);
-    setHistoryIndex(0);
-    setPlacedWords([]);
-    setUserWords([]);
+
+    // Preserve blocked cells that fit in the new grid size
+    if (grid.length > 0) {
+      for (let row = 0; row < Math.min(grid.length, gridSize); row++) {
+        for (let col = 0; col < Math.min(grid[0].length, gridSize); col++) {
+          if (grid[row][col].blocked) {
+            newGrid[row][col].blocked = true;
+          }
+        }
+      }
+    }
+
+    // If we have existing placed words, try to preserve them
+    if (placedWords.length > 0) {
+      const validWords: PlacedWord[] = [];
+      const wordsToReplace: PlacedWord[] = [];
+
+      // Check which words can fit in the new grid size
+      placedWords.forEach(word => {
+        const endRow = word.direction === 'horizontal' ? word.row : word.row + word.word.length - 1;
+        const endCol = word.direction === 'horizontal' ? word.col + word.word.length - 1 : word.col;
+        
+        if (endRow < gridSize && endCol < gridSize && word.row >= 0 && word.col >= 0) {
+          // Word fits, keep it
+          validWords.push(word);
+          placeWordOnGrid(newGrid, word.word, word.row, word.col, word.direction, word.number);
+        } else {
+          // Word doesn't fit, needs repositioning
+          wordsToReplace.push(word);
+        }
+      });
+
+      // Try to reposition words that don't fit
+      wordsToReplace.forEach(word => {
+        const bestPlacement = findBestPlacement(word.word.toUpperCase(), newGrid, validWords);
+        if (bestPlacement && 'row' in bestPlacement) {
+          const repositionedWord: PlacedWord = {
+            ...word,
+            row: bestPlacement.row!,
+            col: bestPlacement.col!,
+            direction: bestPlacement.direction!,
+            number: validWords.length + 1
+          };
+          validWords.push(repositionedWord);
+          placeWordOnGrid(newGrid, word.word, bestPlacement.row!, bestPlacement.col!, bestPlacement.direction!, repositionedWord.number);
+        }
+      });
+
+      // Update state with preserved/repositioned words
+      setPlacedWords(validWords);
+      setGrid(newGrid);
+      
+      // Update history
+      setHistory(prev => [...prev, { grid: newGrid, placedWords: validWords, userWords }]);
+      setHistoryIndex(prev => prev + 1);
+    } else {
+      // No words to preserve, just create empty grid
+      setGrid(newGrid);
+      setHistory([{ grid: newGrid, placedWords: [], userWords: [] }]);
+      setHistoryIndex(0);
+    }
   }, [gridSize]);
+
+  // Save word bank to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('crossword-word-bank', JSON.stringify(wordBank));
+  }, [wordBank]);
 
   const saveToHistory = useCallback((newGrid: Cell[][], newPlacedWords: PlacedWord[], newUserWords: UserWord[]) => {
     const newHistory = history.slice(0, historyIndex + 1);
@@ -198,14 +316,24 @@ const App: React.FC = () => {
     setGenerationProgress(0);
     
     try {
-      const longWords = await dictionary.getWords({ length: 5 });
-      const mediumWords = await dictionary.getWords({ length: 4 });
-      const shortWords = await dictionary.getWords({ length: 3 });
+      // Get personal words first (prioritized)
+      const personalLongWords = getPersonalWordsByLength(5).slice(0, 15);
+      const personalMediumWords = getPersonalWordsByLength(4).slice(0, 20);
+      const personalShortWords = getPersonalWordsByLength(3).slice(0, 25);
       
+      // Get dictionary words to supplement
+      const dictLongWords = await dictionary.getWords({ length: 5 });
+      const dictMediumWords = await dictionary.getWords({ length: 4 });
+      const dictShortWords = await dictionary.getWords({ length: 3 });
+      
+      // Combine personal words (first) with dictionary words
       const allWords = [
-        ...longWords.slice(0, 10),
-        ...mediumWords.slice(0, 15),
-        ...shortWords.slice(0, 20)
+        ...personalLongWords.map(entry => entry.word),
+        ...dictLongWords.slice(0, Math.max(0, 10 - personalLongWords.length)),
+        ...personalMediumWords.map(entry => entry.word),
+        ...dictMediumWords.slice(0, Math.max(0, 15 - personalMediumWords.length)),
+        ...personalShortWords.map(entry => entry.word),
+        ...dictShortWords.slice(0, Math.max(0, 20 - personalShortWords.length))
       ];
       
       let currentGrid = grid.map(row => row.map(cell => ({...cell})));
@@ -222,7 +350,16 @@ const App: React.FC = () => {
         const bestPlacement = findBestPlacement(word, currentGrid, currentPlaced);
         
         if (bestPlacement && 'row' in bestPlacement && (bestPlacement.intersections > 0 || currentPlaced.length < 3)) {
-          const clue = await dictionary.getClue(word);
+          // Check if this is a personal word
+          const personalEntry = wordBank.entries.find(entry => entry.word === word);
+          let clue: string;
+          
+          if (personalEntry) {
+            clue = personalEntry.clue;
+            markWordAsUsed(word);
+          } else {
+            clue = await dictionary.getClue(word);
+          }
           
           placeWordOnGrid(currentGrid, word, bestPlacement.row!, bestPlacement.col!, bestPlacement.direction!, currentPlaced.length + 1);
           currentPlaced.push({
@@ -269,6 +406,122 @@ const App: React.FC = () => {
     }
   };
 
+  const findWordsAtPosition = (row: number, col: number): PlacedWord[] => {
+    return placedWords.filter(word => isPartOfWord(row, col, word));
+  };
+
+  const handleCellClick = (row: number, col: number) => {
+    if (isPlacingBlocks) {
+      toggleBlockedCell(row, col);
+      return;
+    }
+
+    const wordsAtPosition = findWordsAtPosition(row, col);
+    
+    if (wordsAtPosition.length === 0) {
+      // No words at this position, just select the cell
+      setSelectedCell([row, col]);
+      setClickedWord(null);
+      return;
+    }
+
+    if (wordsAtPosition.length === 1) {
+      // Only one word, highlight it
+      setClickedWord(wordsAtPosition[0]);
+      setSelectedCell([row, col]);
+      return;
+    }
+
+    // Multiple words at this position (intersection)
+    if (!clickedWord || !isPartOfWord(row, col, clickedWord)) {
+      // First click or clicked word doesn't include this cell - show first word
+      setClickedWord(wordsAtPosition[0]);
+    } else {
+      // Second click on same intersection - toggle to the other word
+      const currentIndex = wordsAtPosition.findIndex(w => 
+        w.row === clickedWord.row && 
+        w.col === clickedWord.col && 
+        w.direction === clickedWord.direction
+      );
+      const nextIndex = (currentIndex + 1) % wordsAtPosition.length;
+      setClickedWord(wordsAtPosition[nextIndex]);
+    }
+    
+    setSelectedCell([row, col]);
+  };
+
+  const analyzeBlockPreservation = (newSize: number) => {
+    const currentBlocks: [number, number][] = [];
+    let totalBlocks = 0;
+    
+    // Find all current blocked cells
+    for (let row = 0; row < grid.length; row++) {
+      for (let col = 0; col < grid[0].length; col++) {
+        if (grid[row][col].blocked) {
+          currentBlocks.push([row, col]);
+          totalBlocks++;
+        }
+      }
+    }
+    
+    if (totalBlocks === 0) {
+      return null; // No blocks to analyze
+    }
+    
+    // Find blocks that would be preserved
+    const preservedBlocks = currentBlocks.filter(([row, col]) => 
+      row < newSize && col < newSize
+    );
+    
+    // Check symmetry maintenance
+    let symmetryMaintained = true;
+    if (symmetryMode !== 'none') {
+      for (const [row, col] of preservedBlocks) {
+        const symmetricCells = getSymmetricCells(row, col);
+        const allSymmetricPreserved = symmetricCells.every(([r, c]) => 
+          r < newSize && c < newSize
+        );
+        if (!allSymmetricPreserved) {
+          symmetryMaintained = false;
+          break;
+        }
+      }
+    }
+    
+    // Simulate word repositioning to check conflicts
+    let wordConflicts = 0;
+    const tempGrid = Array(newSize).fill(null).map(() => 
+      Array(newSize).fill({ letter: '', blocked: false, number: null })
+    );
+    
+    // Restore preserved blocks
+    preservedBlocks.forEach(([row, col]) => {
+      tempGrid[row][col].blocked = true;
+    });
+    
+    // Check word repositioning conflicts
+    placedWords.forEach(word => {
+      const endRow = word.direction === 'horizontal' ? word.row : word.row + word.word.length - 1;
+      const endCol = word.direction === 'horizontal' ? word.col + word.word.length - 1 : word.col;
+      
+      if (endRow >= newSize || endCol >= newSize) {
+        // Word needs repositioning - check if placement would conflict with blocks
+        const bestPlacement = findBestPlacement(word.word.toUpperCase(), tempGrid, []);
+        if (!bestPlacement || !('row' in bestPlacement)) {
+          wordConflicts++;
+        }
+      }
+    });
+    
+    return {
+      totalBlocks,
+      preservedBlocks: preservedBlocks.length,
+      lostBlocks: totalBlocks - preservedBlocks.length,
+      symmetryMaintained,
+      wordConflicts
+    };
+  };
+
   const getSymmetricCells = (row: number, col: number): [number, number][] => {
     const cells: [number, number][] = [[row, col]];
     
@@ -297,6 +550,130 @@ const App: React.FC = () => {
     }
     
     return cells;
+  };
+
+  // Personal Word Bank Management
+  const addToWordBank = () => {
+    if (!newEntryWord.trim() || !newEntryClue.trim()) return;
+
+    const newEntry: PersonalWordEntry = {
+      id: Date.now().toString(),
+      word: newEntryWord.trim().toUpperCase(),
+      clue: newEntryClue.trim(),
+      weight: newEntryWeight,
+      category: newEntryCategory,
+      dateAdded: new Date(),
+      timesUsed: 0
+    };
+
+    setWordBank(prev => ({
+      ...prev,
+      entries: [...prev.entries, newEntry]
+    }));
+
+    // Clear form
+    setNewEntryWord('');
+    setNewEntryClue('');
+    setNewEntryWeight(5);
+    setNewEntryCategory('General');
+  };
+
+  const updateWordBankEntry = (updatedEntry: PersonalWordEntry) => {
+    setWordBank(prev => ({
+      ...prev,
+      entries: prev.entries.map(entry => 
+        entry.id === updatedEntry.id ? updatedEntry : entry
+      )
+    }));
+    setEditingEntry(null);
+  };
+
+  const deleteWordBankEntry = (id: string) => {
+    setWordBank(prev => ({
+      ...prev,
+      entries: prev.entries.filter(entry => entry.id !== id)
+    }));
+  };
+
+  const getPersonalWordsByLength = (length: number): PersonalWordEntry[] => {
+    return wordBank.entries
+      .filter(entry => entry.word.length === length)
+      .sort((a, b) => {
+        // Sort by weight (higher first), then by usage frequency, then alphabetically
+        if (b.weight !== a.weight) return b.weight - a.weight;
+        if (b.timesUsed !== a.timesUsed) return b.timesUsed - a.timesUsed;
+        return a.word.localeCompare(b.word);
+      });
+  };
+
+  const markWordAsUsed = (word: string) => {
+    setWordBank(prev => ({
+      ...prev,
+      entries: prev.entries.map(entry => 
+        entry.word === word.toUpperCase() 
+          ? { ...entry, lastUsed: new Date(), timesUsed: entry.timesUsed + 1 }
+          : entry
+      )
+    }));
+  };
+
+  const exportWordBank = () => {
+    const dataStr = JSON.stringify(wordBank, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `crossword-word-bank-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleResizeConfirm = (strategy: 'preserve' | 'clear' | 'cancel') => {
+    if (strategy === 'cancel' || !pendingGridSize) {
+      setShowResizeConfirm(false);
+      setPendingGridSize(null);
+      setBlockAnalysis(null);
+      return;
+    }
+    
+    if (strategy === 'clear') {
+      // Clear all blocks before resizing
+      const clearedGrid = grid.map(row => 
+        row.map(cell => ({ ...cell, blocked: false }))
+      );
+      setGrid(clearedGrid);
+    }
+    
+    // Proceed with resize
+    setGridSize(pendingGridSize);
+    setShowResizeConfirm(false);
+    setPendingGridSize(null);
+    setBlockAnalysis(null);
+  };
+
+  const importWordBank = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const imported = JSON.parse(e.target?.result as string);
+        // Convert date strings back to Date objects
+        imported.entries = imported.entries.map((entry: any) => ({
+          ...entry,
+          dateAdded: new Date(entry.dateAdded),
+          lastUsed: entry.lastUsed ? new Date(entry.lastUsed) : undefined
+        }));
+        setWordBank(imported);
+        alert(`Successfully imported ${imported.entries.length} words!`);
+      } catch (error) {
+        alert('Failed to import word bank. Please check the file format.');
+      }
+    };
+    reader.readAsText(file);
+    // Reset input
+    event.target.value = '';
   };
 
   const toggleBlockedCell = (row: number, col: number) => {
@@ -429,7 +806,7 @@ const App: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Crossword Studio Pro</h1>
-              <p className="text-sm text-gray-600">Professional crossword creation with React & TypeScript</p>
+              <p className="text-sm text-gray-600">Elsa's magic tool!</p>
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -447,6 +824,12 @@ const App: React.FC = () => {
                 title="Redo (Ctrl+Y)"
               >
                 ↷ Redo
+              </button>
+              <button
+                onClick={() => setShowWordBank(!showWordBank)}
+                className="btn-secondary px-4 py-2 rounded-lg transition-all"
+              >
+                📚 Word Bank ({wordBank.entries.length})
               </button>
               <button
                 onClick={exportToPDF}
@@ -478,7 +861,20 @@ const App: React.FC = () => {
                     max="21"
                     step="1"
                     value={gridSize}
-                    onChange={(e) => setGridSize(parseInt(e.target.value))}
+                    onChange={(e) => {
+                      const newSize = parseInt(e.target.value);
+                      const analysis = analyzeBlockPreservation(newSize);
+                      
+                      if (analysis && (analysis.lostBlocks > 0 || !analysis.symmetryMaintained || analysis.wordConflicts > 0)) {
+                        // Show confirmation modal
+                        setPendingGridSize(newSize);
+                        setBlockAnalysis(analysis);
+                        setShowResizeConfirm(true);
+                      } else {
+                        // No blocks or no issues, resize immediately
+                        setGridSize(newSize);
+                      }
+                    }}
                     className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                   />
                 </div>
@@ -574,26 +970,6 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* Statistics */}
-            <div className="glass rounded-2xl p-6 slide-up">
-              <h3 className="text-lg font-semibold mb-4 text-gray-900">Statistics</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Words placed:</span>
-                  <span className="font-semibold text-blue-600">{placedWords.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Grid coverage:</span>
-                  <span className="font-semibold text-blue-600">
-                    {placedWords.length > 0 ? Math.round((placedWords.reduce((acc, word) => acc + word.word.length, 0) / (gridSize * gridSize)) * 100) : 0}%
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">User words:</span>
-                  <span className="font-semibold text-blue-600">{userWords.length}</span>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Center - Crossword Grid */}
@@ -621,17 +997,13 @@ const App: React.FC = () => {
                         } ${
                           hoveredWord && isPartOfWord(rowIdx, colIdx, hoveredWord) ? 'word-highlight' : ''
                         } ${
+                          clickedWord && isPartOfWord(rowIdx, colIdx, clickedWord) ? 'clicked-word-highlight' : ''
+                        } ${
                           isPlacingBlocks && hoveredCell && 
                           getSymmetricCells(hoveredCell[0], hoveredCell[1]).some(([r, c]) => r === rowIdx && c === colIdx)
                             ? 'symmetry-preview' : ''
                         }`}
-                        onClick={() => {
-                          if (isPlacingBlocks) {
-                            toggleBlockedCell(rowIdx, colIdx);
-                          } else {
-                            setSelectedCell([rowIdx, colIdx]);
-                          }
-                        }}
+                        onClick={() => handleCellClick(rowIdx, colIdx)}
                         onMouseEnter={() => isPlacingBlocks && setHoveredCell([rowIdx, colIdx])}
                         onMouseLeave={() => isPlacingBlocks && setHoveredCell(null)}
                         style={{ 
@@ -665,6 +1037,27 @@ const App: React.FC = () => {
 
           {/* Right Panel - Clues & Words */}
           <div className="xl:col-span-1 space-y-6">
+            {/* Statistics */}
+            <div className="glass rounded-2xl p-6 slide-up">
+              <h3 className="text-lg font-semibold mb-4 text-gray-900">Statistics</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Words placed:</span>
+                  <span className="font-semibold text-blue-600">{placedWords.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Grid coverage:</span>
+                  <span className="font-semibold text-blue-600">
+                    {placedWords.length > 0 ? Math.round((placedWords.reduce((acc, word) => acc + word.word.length, 0) / (gridSize * gridSize)) * 100) : 0}%
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">User words:</span>
+                  <span className="font-semibold text-blue-600">{userWords.length}</span>
+                </div>
+              </div>
+            </div>
+
             {/* Your Words */}
             {userWords.length > 0 && (
               <div className="glass rounded-2xl p-6 slide-up">
@@ -739,6 +1132,182 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Grid Resize Confirmation Modal */}
+        {showResizeConfirm && blockAnalysis && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+            <div className="glass rounded-2xl p-6 shadow-2xl max-w-md w-full">
+              <div className="text-center">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">Confirm Grid Resize</h2>
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 text-left">
+                  <h3 className="font-semibold text-yellow-800 mb-2">Block Impact Analysis:</h3>
+                  <ul className="text-sm text-yellow-700 space-y-1">
+                    <li>• Total blocks: {blockAnalysis.totalBlocks}</li>
+                    <li>• Will be preserved: {blockAnalysis.preservedBlocks}</li>
+                    <li>• Will be lost: {blockAnalysis.lostBlocks}</li>
+                    {!blockAnalysis.symmetryMaintained && <li>• ⚠️ Symmetry will be broken</li>}
+                    {blockAnalysis.wordConflicts > 0 && <li>• ⚠️ {blockAnalysis.wordConflicts} word(s) may not fit</li>}
+                  </ul>
+                </div>
+                <p className="text-gray-700 mb-6">How would you like to proceed?</p>
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={() => handleResizeConfirm('preserve')}
+                    className="btn-primary px-4 py-3 rounded-xl font-medium"
+                  >
+                    Preserve What Fits & Resize
+                  </button>
+                  <button
+                    onClick={() => handleResizeConfirm('clear')}
+                    className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-3 rounded-xl font-medium transition-all"
+                  >
+                    Clear All Blocks & Resize
+                  </button>
+                  <button
+                    onClick={() => handleResizeConfirm('cancel')}
+                    className="btn-secondary px-4 py-3 rounded-xl font-medium"
+                  >
+                    Cancel Resize
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Word Bank Modal */}
+        {showWordBank && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+            <div className="glass rounded-2xl p-6 shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Personal Word Bank</h2>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={importWordBank}
+                    className="hidden"
+                    id="import-wordbank"
+                  />
+                  <label
+                    htmlFor="import-wordbank"
+                    className="btn-secondary px-3 py-2 rounded-lg cursor-pointer text-sm"
+                  >
+                    📁 Import
+                  </label>
+                  <button
+                    onClick={exportWordBank}
+                    className="btn-secondary px-3 py-2 rounded-lg text-sm"
+                  >
+                    💾 Export
+                  </button>
+                  <button 
+                    onClick={() => setShowWordBank(false)}
+                    className="bg-gray-200 hover:bg-red-100 text-gray-800 hover:text-red-600 w-8 h-8 rounded-full flex items-center justify-center text-xl font-bold transition-all border border-gray-300 hover:border-red-300"
+                    title="Close Word Bank"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              {/* Add New Word Form */}
+              <div className="glass rounded-xl p-4 mb-6">
+                <h3 className="text-lg font-semibold mb-4 text-gray-900">Add New Word</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <input
+                    type="text"
+                    placeholder="Word..."
+                    value={newEntryWord}
+                    onChange={(e) => setNewEntryWord(e.target.value.replace(/[^a-zA-Z]/g, '').toUpperCase())}
+                    className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    maxLength={20}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Clue..."
+                    value={newEntryClue}
+                    onChange={(e) => setNewEntryClue(e.target.value)}
+                    className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  />
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-600">Weight:</label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="10"
+                      value={newEntryWeight}
+                      onChange={(e) => setNewEntryWeight(parseInt(e.target.value))}
+                      className="flex-1"
+                    />
+                    <span className="text-sm font-semibold text-blue-600 w-6">{newEntryWeight}</span>
+                  </div>
+                  <select
+                    value={newEntryCategory}
+                    onChange={(e) => setNewEntryCategory(e.target.value)}
+                    className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+                  >
+                    {wordBank.categories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={addToWordBank}
+                    disabled={!newEntryWord.trim() || !newEntryClue.trim()}
+                    className="btn-primary px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium"
+                  >
+                    Add Word
+                  </button>
+                </div>
+              </div>
+
+              {/* Word List */}
+              <div className="overflow-y-auto max-h-96">
+                <div className="grid gap-2">
+                  {wordBank.entries.map(entry => (
+                    <div key={entry.id} className="flex items-center gap-4 p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-blue-900 text-sm">{entry.word}</span>
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">{entry.category}</span>
+                          <div className="flex">
+                            {Array.from({length: 10}, (_, i) => (
+                              <span key={i} className={`text-xs ${i < entry.weight ? 'text-yellow-500' : 'text-gray-300'}`}>★</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="text-gray-700 text-xs mt-1">{entry.clue}</div>
+                        <div className="text-gray-500 text-xs mt-1">
+                          Used {entry.timesUsed} times • Added {entry.dateAdded.toLocaleDateString()}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setEditingEntry(entry)}
+                          className="text-blue-600 hover:text-blue-800 text-sm px-2 py-1 rounded transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => deleteWordBankEntry(entry.id)}
+                          className="text-red-600 hover:text-red-800 text-sm px-2 py-1 rounded transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {wordBank.entries.length === 0 && (
+                    <div className="text-center py-8 px-4 bg-white bg-opacity-80 rounded-xl border border-gray-300 shadow-sm">
+                      <p className="text-gray-800 font-medium text-lg">No words in your personal bank yet.</p>
+                      <p className="text-gray-700 mt-2">Add some words using the form above to get started!</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Loading Overlay */}
         {isGenerating && (

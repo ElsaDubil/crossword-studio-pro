@@ -13,6 +13,8 @@ body {
   height: 100%;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   z-index: -1;
+  transform: translateZ(0);
+  will-change: auto;
 }
 
 .cloud {
@@ -96,14 +98,15 @@ body {
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease-in-out;
+  transition: background 0.3s ease-in-out, border 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+  position: relative;
+  will-change: background, border, box-shadow;
 }
 
 .glass:hover {
   background: rgba(255, 255, 255, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.3);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-  transform: translateY(-2px);
 }
 
 /* Button Styles */
@@ -185,6 +188,13 @@ body {
 .nyt-cell.word-highlight {
   background: rgba(102, 126, 234, 0.3);
   transform: scale(1.02);
+}
+
+.nyt-cell.clicked-word-highlight {
+  background: rgba(34, 197, 94, 0.4);
+  border-color: rgba(34, 197, 94, 0.6);
+  transform: scale(1.04);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
 }
 
 .nyt-cell.symmetry-preview {
