@@ -1,142 +1,216 @@
-/* Cloud Background Animation */
+/* NYT Franklin Font - trying multiple sources */
+@import url('https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Franklin+Gothic:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --electric-blue: #00D4FF;
+  --deep-blue: #0099CC;
+  --neon-cyan: #00FFFF;
+  --accent-orange: #FF6B35;
+  --dark-bg: #0A0E27;
+  --card-bg: rgba(15, 23, 42, 0.8);
+  --text-primary: #FFFFFF;
+  --text-secondary: #94A3B8;
+  --border-glow: rgba(0, 212, 255, 0.3);
+}
+
 body {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
+  font-family: 'nyt-franklin', 'Libre Franklin', 'Franklin Gothic', 'Helvetica Neue', Arial, sans-serif;
+  background: var(--dark-bg);
 }
 
-.cloud-background {
+/* Apply NYT Franklin font globally */
+* {
+  font-family: 'nyt-franklin', 'Libre Franklin', 'Franklin Gothic', 'Helvetica Neue', Arial, sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'nyt-franklin', 'Libre Franklin', 'Franklin Gothic', 'Helvetica Neue', Arial, sans-serif;
+}
+
+button, input, textarea, select {
+  font-family: 'nyt-franklin', 'Libre Franklin', 'Franklin Gothic', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.geometric-background {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0A0E27 0%, #1E293B 50%, #0F172A 100%);
   z-index: -1;
-  transform: translateZ(0);
-  will-change: auto;
+  overflow: hidden;
 }
 
-.cloud {
+/* Geometric Shapes */
+.geometric-shape {
   position: absolute;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 50px;
-  opacity: 0.6;
-  animation: float 20s infinite linear;
+  opacity: 0.1;
 }
 
-.cloud::before,
-.cloud::after {
-  content: '';
-  position: absolute;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 50px;
+.triangle1 {
+  width: 0;
+  height: 0;
+  border-left: 50px solid transparent;
+  border-right: 50px solid transparent;
+  border-bottom: 87px solid var(--electric-blue);
+  top: 10%;
+  right: 10%;
+  animation: rotateFloat 20s infinite linear;
 }
 
-.cloud::before {
+.triangle2 {
+  width: 0;
+  height: 0;
+  border-left: 30px solid transparent;
+  border-right: 30px solid transparent;
+  border-bottom: 52px solid var(--neon-cyan);
+  top: 70%;
+  left: 5%;
+  animation: rotateFloat 25s infinite linear reverse;
+}
+
+.circle1 {
+  width: 120px;
+  height: 120px;
+  border: 3px solid var(--electric-blue);
+  border-radius: 50%;
+  top: 30%;
+  left: 80%;
+  animation: pulse 4s infinite ease-in-out;
+}
+
+.circle2 {
   width: 80px;
   height: 80px;
-  top: -40px;
-  left: 10px;
-}
-
-.cloud::after {
-  width: 60px;
-  height: 60px;
-  top: -20px;
-  right: 15px;
-}
-
-.cloud1 {
-  width: 100px;
-  height: 40px;
-  top: 20%;
-  left: -100px;
-  animation-duration: 25s;
-}
-
-.cloud2 {
-  width: 80px;
-  height: 35px;
-  top: 60%;
-  left: -80px;
-  animation-duration: 30s;
-  animation-delay: -5s;
-}
-
-.cloud3 {
-  width: 120px;
-  height: 45px;
-  top: 40%;
-  left: -120px;
-  animation-duration: 35s;
-  animation-delay: -10s;
-}
-
-.cloud4 {
-  width: 90px;
-  height: 38px;
+  background: radial-gradient(circle, var(--neon-cyan) 0%, transparent 70%);
+  border-radius: 50%;
   top: 80%;
-  left: -90px;
-  animation-duration: 28s;
-  animation-delay: -15s;
+  right: 20%;
+  animation: pulse 6s infinite ease-in-out;
 }
 
-@keyframes float {
+.line1 {
+  width: 200px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--electric-blue) 50%, transparent 100%);
+  top: 15%;
+  left: 30%;
+  transform: rotate(45deg);
+  animation: glow 3s infinite ease-in-out;
+}
+
+.line2 {
+  width: 150px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--accent-orange) 50%, transparent 100%);
+  top: 60%;
+  right: 30%;
+  transform: rotate(-30deg);
+  animation: glow 4s infinite ease-in-out;
+}
+
+@keyframes rotateFloat {
   0% {
-    transform: translateX(-100px);
+    transform: rotate(0deg) translateY(0px);
+  }
+  50% {
+    transform: rotate(180deg) translateY(-20px);
   }
   100% {
-    transform: translateX(calc(100vw + 100px));
+    transform: rotate(360deg) translateY(0px);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.2;
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    opacity: 0.1;
+    filter: blur(0px);
+  }
+  50% {
+    opacity: 0.3;
+    filter: blur(1px);
   }
 }
 
 /* Glass Morphism Panels */
 .glass {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--card-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  transition: background 0.3s ease-in-out, border 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+  border: 1px solid var(--border-glow);
+  box-shadow: 0 8px 32px rgba(0, 212, 255, 0.1);
+  transition: all 0.3s ease-in-out;
   position: relative;
-  will-change: background, border, box-shadow;
+  will-change: background, border, box-shadow, transform;
 }
 
 .glass:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(0, 212, 255, 0.5);
+  box-shadow: 0 12px 40px rgba(0, 212, 255, 0.2), 0 0 20px rgba(0, 212, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Glass panel titles - white text with neon glow */
+.glass h3 {
+  color: var(--text-primary) !important;
+  text-shadow: 0 0 8px rgba(0, 212, 255, 0.6), 0 0 12px rgba(0, 212, 255, 0.4);
+  font-weight: 600;
+}
+
+/* Pro Tips section title styling */
+.pro-tips-section h3 {
+  color: #374151 !important;
+  text-shadow: none;
+  font-weight: 600;
 }
 
 /* Button Styles */
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
+  background: linear-gradient(135deg, var(--electric-blue) 0%, var(--deep-blue) 100%);
+  color: var(--text-primary);
+  border: 1px solid var(--border-glow);
   font-weight: 600;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
 }
 
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 8px 25px rgba(0, 212, 255, 0.4), 0 0 15px rgba(0, 212, 255, 0.2);
+  border-color: var(--neon-cyan);
 }
 
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.2);
-  color: #333;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-glow);
   font-weight: 600;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(15, 23, 42, 0.9);
   transform: translateY(-1px);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 15px rgba(0, 212, 255, 0.2), 0 0 10px rgba(0, 212, 255, 0.1);
+  border-color: rgba(0, 212, 255, 0.5);
 }
 
 /* Crossword Grid Styles */
@@ -204,6 +278,39 @@ body {
   box-shadow: 0 0 8px rgba(147, 51, 234, 0.5);
 }
 
+/* Drag and drop styling */
+.nyt-cell.draggable-word {
+  cursor: grab;
+}
+
+.nyt-cell.draggable-word:active {
+  cursor: grabbing;
+}
+
+.nyt-cell.being-dragged {
+  opacity: 0.5;
+  transform: scale(0.95);
+  transition: all 0.2s ease;
+}
+
+.nyt-cell.drag-preview {
+  background: rgba(34, 197, 94, 0.6) !important;
+  border-color: rgba(34, 197, 94, 0.8);
+  transform: scale(1.05);
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.6);
+  z-index: 10;
+}
+
+.nyt-cell.drag-preview::after {
+  content: '✓';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  color: white;
+  font-size: 8px;
+  font-weight: bold;
+}
+
 .cell-number {
   position: absolute;
   top: 1px;
@@ -248,17 +355,23 @@ body {
 
 /* Input Styles */
 input[type="text"], textarea, input[type="range"] {
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: var(--card-bg);
+  border: 1px solid var(--border-glow);
+  color: var(--text-primary);
   backdrop-filter: blur(10px);
   transition: all 0.3s ease;
 }
 
 input[type="text"]:focus, textarea:focus {
-  background: rgba(255, 255, 255, 0.95);
-  border-color: rgba(102, 126, 234, 0.5);
-  box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+  background: rgba(15, 23, 42, 0.9);
+  border-color: var(--electric-blue);
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.3), 0 0 5px rgba(0, 212, 255, 0.5);
   transform: translateY(-1px);
+  outline: none;
+}
+
+input[type="text"]::placeholder, textarea::placeholder {
+  color: var(--text-secondary);
 }
 
 /* Range Slider */
@@ -267,8 +380,9 @@ input[type="range"] {
   -webkit-appearance: none;
   height: 8px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(0, 212, 255, 0.2);
   outline: none;
+  border: 1px solid var(--border-glow);
 }
 
 input[type="range"]::-webkit-slider-thumb {
@@ -276,15 +390,16 @@ input[type="range"]::-webkit-slider-thumb {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--electric-blue) 0%, var(--neon-cyan) 100%);
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 212, 255, 0.4), 0 0 8px rgba(0, 212, 255, 0.2);
   transition: all 0.3s ease;
+  border: none;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
   transform: scale(1.2);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+  box-shadow: 0 6px 20px rgba(0, 212, 255, 0.6), 0 0 15px rgba(0, 212, 255, 0.4);
 }
 
 /* Progress Ring Animation */
@@ -304,16 +419,199 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.5);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
+  background: linear-gradient(135deg, var(--electric-blue) 0%, var(--deep-blue) 100%);
   border-radius: 10px;
   transition: all 0.3s ease;
+  box-shadow: 0 0 5px rgba(0, 212, 255, 0.3);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.5);
+  background: linear-gradient(135deg, var(--neon-cyan) 0%, var(--electric-blue) 100%);
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+}
+
+/* Semi-transparent Header */
+.semi-transparent-header {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border-glow);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: 0 4px 20px rgba(0, 212, 255, 0.1);
+}
+
+.semi-transparent-header h1 {
+  color: white;
+  font-weight: bold;
+  text-shadow: none;
+}
+
+.header-logo {
+  height: 32px;
+  width: auto;
+  max-width: 48px;
+  filter: drop-shadow(0 0 4px rgba(0, 212, 255, 0.3));
+  object-fit: contain;
+}
+
+/* Neon Accent Classes */
+.neon-glow {
+  box-shadow: 0 0 5px var(--electric-blue), 0 0 10px var(--electric-blue), 0 0 15px var(--electric-blue);
+  animation: neonPulse 2s infinite ease-in-out;
+}
+
+@keyframes neonPulse {
+  0%, 100% {
+    box-shadow: 0 0 5px var(--electric-blue), 0 0 10px var(--electric-blue), 0 0 15px var(--electric-blue);
+  }
+  50% {
+    box-shadow: 0 0 8px var(--neon-cyan), 0 0 15px var(--neon-cyan), 0 0 25px var(--neon-cyan);
+  }
+}
+
+/* Responsive Layout for Half-Width Screens */
+@media (max-width: 1279px) {
+  .responsive-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  /* Place Word section goes first */
+  .place-word-section {
+    order: 1;
+  }
+
+  /* Grid goes second */
+  .grid-panel {
+    order: 2;
+  }
+
+  /* Create a 2x2 grid layout after the grid panel */
+  .compact-controls-wrapper {
+    order: 3;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+
+  /* Grid settings section */
+  .grid-settings-section {
+    order: 3;
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  /* Block placement section */
+  .block-placement-section {
+    order: 4;
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  /* Statistics section */
+  .statistics-section {
+    order: 5;
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  /* Pro tips section */
+  .pro-tips-section {
+    order: 6;
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  /* Suggestions section */
+  .suggestions-section {
+    order: 2;
+  }
+
+  /* Remaining right panel content goes last */
+  .right-panel {
+    order: 7;
+  }
+
+  /* Reset the controls panel to stack vertically */
+  .controls-panel {
+    display: contents; /* This allows children to participate in parent's flex layout */
+  }
+
+  /* Hide xl grid column behavior on smaller screens */
+  .responsive-layout > div[class*="xl:col-span"] {
+    width: 100%;
+    max-width: none;
+  }
+
+  /* Compact styling for smaller bubbles */
+  .grid-settings-section,
+  .block-placement-section,
+  .statistics-section,
+  .pro-tips-section {
+    padding: 1rem !important;
+  }
+
+  .grid-settings-section .glass,
+  .block-placement-section .glass,
+  .statistics-section .glass,
+  .pro-tips-section .glass,
+  .pro-tips-section div[class*="bg-gradient"] {
+    padding: 1rem !important;
+  }
+
+  .grid-settings-section h3,
+  .block-placement-section h3,
+  .statistics-section h3,
+  .pro-tips-section h3 {
+    font-size: 1rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .grid-settings-section .space-y-4 > * + *,
+  .block-placement-section .space-y-4 > * + * {
+    margin-top: 0.75rem !important;
+  }
+
+  .statistics-section .space-y-3 > * + * {
+    margin-top: 0.5rem !important;
+  }
+
+  .pro-tips-section .space-y-2 > * + * {
+    margin-top: 0.5rem !important;
+  }
+
+  .grid-settings-section button,
+  .block-placement-section button {
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.875rem !important;
+  }
+
+  .grid-settings-section input[type="range"],
+  .block-placement-section input[type="range"] {
+    height: 6px !important;
+  }
+
+  .grid-settings-section label,
+  .block-placement-section label,
+  .statistics-section label,
+  .pro-tips-section label {
+    font-size: 0.875rem !important;
+  }
+
+  .grid-settings-section p,
+  .block-placement-section p,
+  .statistics-section p,
+  .pro-tips-section p {
+    font-size: 0.75rem !important;
+  }
+
 }

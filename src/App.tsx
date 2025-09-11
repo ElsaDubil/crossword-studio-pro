@@ -1216,15 +1216,7 @@ const App: React.FC = () => {
                 <h3 className="text-lg font-semibold mb-4 text-gray-900">Add New Word</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                   <input
-                    type="text"
-                    placeholder="Word..."
-                    value={newEntryWord}
-                    onChange={(e) => setNewEntryWord(e.target.value.replace(/[^a-zA-Z]/g, '').toUpperCase())}
-                    className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    maxLength={20}
-                  />
-                  <input
-                    type="text"
+                  
                     placeholder="Clue..."
                     value={newEntryClue}
                     onChange={(e) => setNewEntryClue(e.target.value)}

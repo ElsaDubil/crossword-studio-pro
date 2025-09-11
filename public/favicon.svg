@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- 2x2 crossword grid with diagonal pattern -->
+  <rect width="32" height="32" fill="#0A0E27"/>
+  
+  <!-- Top-left white square -->
+  <rect x="4" y="4" width="10" height="10" fill="white" stroke="#333" stroke-width="1"/>
+  
+  <!-- Top-right black square -->
+  <rect x="18" y="4" width="10" height="10" fill="black" stroke="#333" stroke-width="1"/>
+  
+  <!-- Bottom-left black square -->
+  <rect x="4" y="18" width="10" height="10" fill="black" stroke="#333" stroke-width="1"/>
+  
+  <!-- Bottom-right white square -->
+  <rect x="18" y="18" width="10" height="10" fill="white" stroke="#333" stroke-width="1"/>
+</svg>
